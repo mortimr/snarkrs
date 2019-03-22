@@ -1,0 +1,7 @@
+.idea
+/target/
+**/*.rs.bk
+Cargo.lock
+ccov.zip
+lcov.info
+snarkrs.iml

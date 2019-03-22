@@ -1,0 +1,19 @@
+[package]
+name = "snarkrs"
+version = "0.1.0"
+authors = ["Iulian Rotaru (mortimr) <iulian@rotaru.fr>"]
+
+[lib]
+name = "libsnarkrs"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "snarkrs"
+path = "src/bin.rs"
+
+[dependencies]
+pest = "2.1.0"
+pest_derive = "2.1.0"
+
+[dev-dependencies]
+galvanic-assert = "0.8.7"

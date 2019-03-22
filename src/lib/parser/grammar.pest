@@ -1,0 +1,348 @@
+// Constants
+WHITESPACE = _{WHITE_SPACE}
+
+end_of_line = {
+    ";"
+}
+
+string_delimiter = _{
+    "\""
+}
+
+special_characters = _{
+      "!" | "#" | "$"
+    | "%" | "&" | "'"
+    | "(" | ")" | "+"
+    | "," | "-" | "."
+    | ";" | "=" | "@"
+    | "[" | "]" | "^"
+    | "_" | "`" | "{"
+    | "}" | "~"
+}
+
+path_delimiter = _{
+    "/"
+}
+
+path_segment = {
+    (ASCII_ALPHA | special_characters)+
+}
+
+// Commons
+VariableName = {
+    ASCII_ALPHA ~ ASCII_ALPHANUMERIC*
+}
+
+FilesystemPath = {
+    (ASCII_ALPHANUMERIC | special_characters)+
+}
+
+Parameters = {
+    "(" ~
+    (
+        VariableName ~
+        (
+            "," ~ VariableName
+        )*
+    )?
+    ~ ")"
+}
+
+// Function
+//
+// - Used to factorize code in templates
+// - Cannot define constaints or signals
+//
+//  function nbits(a) {
+//      var n = 1;
+//      var r = 0;
+//      while (n-1<a) {
+//          r++;
+//          n *= 2;
+//      }
+//      return r;
+//  }
+//
+
+EDecimal = ${
+    ASCII_DIGIT+
+}
+
+EHexadecimal = ${
+    "0x" ~ ASCII_HEX_DIGIT+
+}
+
+EVariableName = {
+  (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*
+}
+
+EValue = _{
+    EDecimal | EHexadecimal | EVariableName | ("(" ~ Expression ~ ")")
+}
+
+Expression = !{
+    ESignalAssertionConstraintOperation
+}
+
+ESignalAssertionConstraintOperator = {
+    ("===")
+}
+
+ESignalAssertionConstraintOperation = {
+    ESignalLeftHandOperation ~ (ESignalAssertionConstraintOperator ~ ESignalLeftHandOperation)*
+}
+
+ESignalLeftHandOperator = {
+    ("<===" | "<---")
+}
+
+ESignalLeftHandOperation = {
+    (ESignalRightHandOperation ~ ESignalLeftHandOperator)? ~ ESignalRightHandOperation
+}
+
+ESignalRightHandOperator = {
+    ("===>" | "--->")
+}
+
+ESignalRightHandOperation = {
+    E0Assignment ~ (ESignalRightHandOperator ~ E0Assignment)*
+}
+
+// Security to not catch assignment instead of signal operators
+E0AssignmentOperators = {
+    (("=" ~ !"=") | "+=" | "-=" | "*=" | "/=" | "%=" | "<<=" | ">>=" | "&=" | "^=" | "|=")
+}
+
+E0Assignment = {
+    (E1LogicalOperation ~ E0AssignmentOperators)? ~ E1LogicalOperation
+}
+
+E1LogicalOperators = {
+    ("&&" | "||")
+}
+
+E1LogicalOperation = {
+    E2BitwiseOperation ~ (E1LogicalOperators ~ E2BitwiseOperation)*
+}
+
+E2BitwiseOperators = {
+    ("&" | "^" | "|")
+}
+
+E2BitwiseOperation = {
+   E3RelationalEqualityOperation ~ (E2BitwiseOperators ~ E3RelationalEqualityOperation)*
+}
+
+// Security to not catch assignment instead of signal operators
+E3RelationalEqualityOperators = {
+    (("==" ~ !"=") | "!=")
+}
+
+E3RelationalEqualityOperation = {
+    E4RelationalOrderingOperation ~ (E3RelationalEqualityOperators ~ E4RelationalOrderingOperation)*
+}
+
+E4RelationalOrderingOperators = {
+    (">" | ">=" | "<" | "<=")
+}
+
+E4RelationalOrderingOperation = {
+    E5BitwiseShiftOperation ~ (E4RelationalOrderingOperators ~ E5BitwiseShiftOperation)*
+}
+
+E5BitwiseShiftOperators = {
+    (">>" | "<<")
+}
+
+E5BitwiseShiftOperation = {
+    E6SumOperation ~ (E5BitwiseShiftOperators ~ E6SumOperation)*
+}
+
+E6SumOperators = {
+    ("+" | "-")
+}
+
+E6SumOperation = {
+    E7ProductOperation ~ (E6SumOperators ~ E7ProductOperation)*
+}
+
+E7ProductOperators = {
+    ("*" | "/" | "%")
+}
+
+E7ProductOperation = {
+    E8ExponentialOperation ~ (E7ProductOperators ~ E8ExponentialOperation)*
+}
+
+E8ExponentialOperator = {
+    ("**")
+}
+
+E8ExponentialOperation = {
+    E9PrefixOperation ~ (E8ExponentialOperator ~ E9PrefixOperation)*
+}
+
+// Security to not catch assignment instead of signal operators
+E9PrefixOperators = {
+    ("!" | "~" | "++" | ("--" ~ !"-") | "+" | ("-" ~ !"-"))
+}
+
+E9PrefixOperation = {
+    E9PrefixOperators? ~ E10PostfixOperation
+}
+
+E10PostfixOperators = {
+    ("++" | ("--" ~ !"-"))
+}
+
+E10PostfixOperation = {
+    E11MemberAccessOperation ~ E10PostfixOperators?
+}
+
+E11MemberAccessOperator = {
+    "."
+}
+
+E11MemberAccessOperation = {
+    E12CallOperation ~ (E11MemberAccessOperator ~ E12CallOperation)*
+}
+
+E12ArgumentsContent = {
+    (
+        Expression
+    )
+    ~
+    (
+        "," ~ Expression
+    )*
+}
+
+E12CallOperatorOpen = _{
+   "("
+}
+
+E12CallOperatorClose = _{
+   ")"
+}
+
+E12CallOperation = {
+    E13BracketOperation ~ (E12CallOperatorOpen ~ E12ArgumentsContent? ~ E12CallOperatorClose)*
+}
+
+E13BracketContent = {
+    Expression
+}
+
+E13BracketOperatorOpen = {
+    "["
+}
+
+E13BracketOperatorClose = {
+    "]"
+}
+
+E13BracketOperation = {
+    EValue ~ (E13BracketOperatorOpen ~ E13BracketContent? ~ E13BracketOperatorClose)*
+}
+
+VariableDeclarationKW = ${
+    "var" ~ WHITESPACE+
+}
+
+VariableDeclarationStatement = {
+    VariableDeclarationKW ~
+    (
+        EVariableName
+    )
+    ~
+    (
+        "=" ~ Expression
+    )?
+}
+
+BodyStatement = _{
+    (
+        (
+            VariableDeclarationStatement ~ end_of_line
+        )
+        |
+        (
+            Expression ~ end_of_line
+        )
+    )
+}
+
+Body = {
+    "{" ~
+    (
+        BodyStatement
+    )*
+    ~ "}"
+}
+
+FunctionName = {
+    ASCII_ALPHA ~
+    (
+        ASCII_ALPHANUMERIC | "_"
+    )*
+}
+
+FunctionKW = ${
+    "function" ~ WHITESPACE+
+}
+
+FunctionBlock = {
+    FunctionKW ~ FunctionName ~ Parameters ~ Body
+}
+
+TemplateName = {
+    ASCII_ALPHA ~
+    (
+        ASCII_ALPHANUMERIC | "_"
+    )*
+}
+
+TemplateKW = ${
+    "template" ~ WHITESPACE+
+}
+
+TemplateBlock = {
+    TemplateKW ~ TemplateName ~ Parameters ~ Body
+}
+
+// Template
+//
+// - Used to define constraints and signals
+// - Used to create components
+// - Similar to functions, with extra features and operators
+//
+//  template NAND() {
+//      signal private input a;
+//      signal input b;
+//      signal output out;
+//
+//      out <== 1 - a*b;
+//      a*(a-1) === 0;
+//      b*(b-1) === 0;
+//  }
+//
+
+// Include Statements
+//
+// - Used to include other circuit files
+//
+//  include "my_circuit.circom";
+//
+
+IncludeKW = ${
+    "include" ~ WHITESPACE+
+}
+
+IncludePathString = ${
+    string_delimiter ~ FilesystemPath ~ string_delimiter
+}
+
+IncludeStatement = {
+    IncludeKW ~ IncludePathString ~ end_of_line
+}
+
