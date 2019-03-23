@@ -1,40 +1,48 @@
 // Constants
+
+COMMENT_SPAN_OPENING_OPERATOR = {
+    "/*"
+}
+
+COMMENT_SPAN_CLOSING_OPERATOR = {
+    "*/"
+}
+
+COMMENT_SPAN_CONTENT = {
+    (
+        !("*/") ~ ANY
+    )*
+}
+
+COMMENT_LINE_CONTENT = {
+    (
+        !("\n") ~ ANY
+    )*
+}
+
+COMMENT_SPAN = { COMMENT_SPAN_OPENING_OPERATOR ~ COMMENT_SPAN_CONTENT ~ COMMENT_SPAN_CLOSING_OPERATOR}
+COMMENT_LINE = {"//" ~ COMMENT_LINE_CONTENT ~ NEWLINE}
+
+COMMENT = { COMMENT_SPAN | COMMENT_LINE}
+
 WHITESPACE = _{WHITE_SPACE}
 
-end_of_line = {
+END_OF_LINE = {
     ";"
 }
 
-string_delimiter = _{
+STRING_DELIMITER = _{
     "\""
 }
 
-special_characters = _{
-      "!" | "#" | "$"
-    | "%" | "&" | "'"
-    | "(" | ")" | "+"
-    | "," | "-" | "."
-    | ";" | "=" | "@"
-    | "[" | "]" | "^"
-    | "_" | "`" | "{"
-    | "}" | "~"
-}
-
-path_delimiter = _{
-    "/"
-}
-
-path_segment = {
-    (ASCII_ALPHA | special_characters)+
-}
-
 // Commons
+
 VariableName = {
     ASCII_ALPHA ~ ASCII_ALPHANUMERIC*
 }
 
 FilesystemPath = {
-    (ASCII_ALPHANUMERIC | special_characters)+
+    (!"\"" ~ ANY)+
 }
 
 Parameters = {
@@ -48,166 +56,225 @@ Parameters = {
     ~ ")"
 }
 
-// Function
+// Expression
 //
-// - Used to factorize code in templates
-// - Cannot define constaints or signals
-//
-//  function nbits(a) {
-//      var n = 1;
-//      var r = 0;
-//      while (n-1<a) {
-//          r++;
-//          n *= 2;
-//      }
-//      return r;
-//  }
+// - Expression are statements composed of a variable number of constant, variable values and function calls, separated by operators
+// - Operators have precendence
 //
 
-EDecimal = ${
+E_Decimal = ${
     ASCII_DIGIT+
 }
 
-EHexadecimal = ${
+E_Hexadecimal = ${
     "0x" ~ ASCII_HEX_DIGIT+
 }
 
-EVariableName = {
+E_VariableName = ${
   (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*
 }
 
-EValue = _{
-    EDecimal | EHexadecimal | EVariableName | ("(" ~ Expression ~ ")")
+E_TerminalValue = _{
+    E_Hexadecimal | E_Decimal | E_VariableName
+}
+
+E_ArrayOperatorOpen = {
+    "["
+}
+
+E_ArrayOperatorClose = {
+    "]"
+}
+
+E_Array = {
+    E_ArrayOperatorOpen ~ Expression? ~ E_ArrayOperatorClose
+}
+
+E_BracketsOperatorOpen = {
+    "("
+}
+
+E_BracketsOperatorclose = {
+    ")"
+}
+
+E_Brackets = {
+    E_BracketsOperatorOpen ~ Expression? ~ E_BracketsOperatorclose
+}
+
+E_Value = {
+    E_TerminalValue | E_Brackets | E_Array
 }
 
 Expression = !{
-    ESignalAssertionConstraintOperation
+    E_0_CommaOp
 }
 
-ESignalAssertionConstraintOperator = {
+E_0_CommaOperator = {
+    (",")
+}
+
+E_0_CommaOp = _{
+    E_1_SignalAssertionConstraintOp ~ (E_0_CommaOperator ~ E_1_SignalAssertionConstraintOp)*
+}
+
+E_1_SignalAssertionConstraintOperator = {
     ("===")
 }
 
-ESignalAssertionConstraintOperation = {
-    ESignalLeftHandOperation ~ (ESignalAssertionConstraintOperator ~ ESignalLeftHandOperation)*
+E_1_SignalAssertionConstraintOp = _{
+    E_2_SignalLeftHandOp ~ (E_1_SignalAssertionConstraintOperator ~ E_2_SignalLeftHandOp)*
 }
 
-ESignalLeftHandOperator = {
-    ("<===" | "<---")
+E_2_SignalLeftHandOperator = {
+    ("<==" | "<--")
 }
 
-ESignalLeftHandOperation = {
-    (ESignalRightHandOperation ~ ESignalLeftHandOperator)? ~ ESignalRightHandOperation
+E_2_SignalLeftHandOp = _{
+    (E_3_SignalRightHandOp ~ E_2_SignalLeftHandOperator)? ~ E_3_SignalRightHandOp
 }
 
-ESignalRightHandOperator = {
-    ("===>" | "--->")
+E_3_SignalRightHandOperator = {
+    ("==>" | "-->")
 }
 
-ESignalRightHandOperation = {
-    E0Assignment ~ (ESignalRightHandOperator ~ E0Assignment)*
+E_3_SignalRightHandOp = _{
+    E_4_AssignmentOp ~ (E_3_SignalRightHandOperator ~ E_4_AssignmentOp)*
 }
 
-// Security to not catch assignment instead of signal operators
-E0AssignmentOperators = {
+E_4_AssignmentOperator = {
     (("=" ~ !"=") | "+=" | "-=" | "*=" | "/=" | "%=" | "<<=" | ">>=" | "&=" | "^=" | "|=")
 }
 
-E0Assignment = {
-    (E1LogicalOperation ~ E0AssignmentOperators)? ~ E1LogicalOperation
+E_4_AssignmentOp = _{
+    (E_5_TernaryOp ~ E_4_AssignmentOperator)? ~ E_5_TernaryOp
 }
 
-E1LogicalOperators = {
-    ("&&" | "||")
+E_5_TernaryFirstOperator = {
+    "?"
 }
 
-E1LogicalOperation = {
-    E2BitwiseOperation ~ (E1LogicalOperators ~ E2BitwiseOperation)*
+E_5_TernarySecondOperator = {
+    ":"
 }
 
-E2BitwiseOperators = {
-    ("&" | "^" | "|")
+E_5_TernaryOp = _{
+    E_6_LogicalOrOp ~ (E_5_TernaryFirstOperator ~ E_6_LogicalOrOp ~ E_5_TernarySecondOperator ~ E_6_LogicalOrOp)?
 }
 
-E2BitwiseOperation = {
-   E3RelationalEqualityOperation ~ (E2BitwiseOperators ~ E3RelationalEqualityOperation)*
+E_6_LogicalOrOperator = {
+    ("||")
 }
 
-// Security to not catch assignment instead of signal operators
-E3RelationalEqualityOperators = {
+E_6_LogicalOrOp = _{
+    E_7_LogicalAndOp ~ (E_6_LogicalOrOperator ~ E_7_LogicalAndOp)*
+}
+
+E_7_LogicalAndOperator = {
+    ("&&")
+}
+
+E_7_LogicalAndOp = _{
+    E_8_BitwiseOrOp ~ (E_7_LogicalAndOperator ~ E_8_BitwiseOrOp)*
+}
+
+E_8_BitwiseOrOperator = {
+    ("|")
+}
+
+E_8_BitwiseOrOp = _{
+   E_9_BitwiseXorOp ~ (E_8_BitwiseOrOperator ~ E_9_BitwiseXorOp)*
+}
+
+E_9_BitwiseXorOperator = {
+    ("^")
+}
+
+E_9_BitwiseXorOp = _{
+   E_10_BitwiseAndOp ~ (E_9_BitwiseXorOperator ~ E_10_BitwiseAndOp)*
+}
+
+E_10_BitwiseAndOperator = {
+    ("&")
+}
+
+E_10_BitwiseAndOp = _{
+   E_11_RelationalEqualityOp ~ (E_10_BitwiseAndOperator ~ E_11_RelationalEqualityOp)*
+}
+
+E_11_RelationalEqualityOperator = {
     (("==" ~ !"=") | "!=")
 }
 
-E3RelationalEqualityOperation = {
-    E4RelationalOrderingOperation ~ (E3RelationalEqualityOperators ~ E4RelationalOrderingOperation)*
+E_11_RelationalEqualityOp = _{
+    E_12_RelationalOrderingOp ~ (E_11_RelationalEqualityOperator ~ E_12_RelationalOrderingOp)*
 }
 
-E4RelationalOrderingOperators = {
-    (">" | ">=" | "<" | "<=")
+E_12_RelationalOrderingOperator = {
+    (">=" | ">" | ("<=" ~ !"=") | ("<" ~ !("=" | "-") ) )
 }
 
-E4RelationalOrderingOperation = {
-    E5BitwiseShiftOperation ~ (E4RelationalOrderingOperators ~ E5BitwiseShiftOperation)*
+E_12_RelationalOrderingOp = _{
+    E_13_BitwiseShiftOp ~ (E_12_RelationalOrderingOperator ~ E_13_BitwiseShiftOp)*
 }
 
-E5BitwiseShiftOperators = {
+E_13_BitwiseShiftOperator = {
     (">>" | "<<")
 }
 
-E5BitwiseShiftOperation = {
-    E6SumOperation ~ (E5BitwiseShiftOperators ~ E6SumOperation)*
+E_13_BitwiseShiftOp = _{
+    E_14_SumOp ~ (E_13_BitwiseShiftOperator ~ E_14_SumOp)*
 }
 
-E6SumOperators = {
+E_14_SumOperator = {
     ("+" | "-")
 }
 
-E6SumOperation = {
-    E7ProductOperation ~ (E6SumOperators ~ E7ProductOperation)*
+E_14_SumOp = _{
+    E_15_ProductOp ~ (E_14_SumOperator ~ E_15_ProductOp)*
 }
 
-E7ProductOperators = {
-    ("*" | "/" | "%")
+E_15_ProductOperator = {
+    ("*" | "/" | "%" | "\\")
 }
 
-E7ProductOperation = {
-    E8ExponentialOperation ~ (E7ProductOperators ~ E8ExponentialOperation)*
+E_15_ProductOp = _{
+    E_16_ExponentialOp ~ (E_15_ProductOperator ~ E_16_ExponentialOp)*
 }
 
-E8ExponentialOperator = {
+E_16_ExponentialOperator = {
     ("**")
 }
 
-E8ExponentialOperation = {
-    E9PrefixOperation ~ (E8ExponentialOperator ~ E9PrefixOperation)*
+E_16_ExponentialOp = _{
+    E_17_PrefixOp ~ (E_16_ExponentialOperator ~ E_17_PrefixOp)*
 }
 
-// Security to not catch assignment instead of signal operators
-E9PrefixOperators = {
-    ("!" | "~" | "++" | ("--" ~ !"-") | "+" | ("-" ~ !"-"))
+E_17_PrefixOperator = {
+    ("!" | "~" | "++" | ("--" ~ !">") | "+" | ("-" ~ !"-"))
 }
 
-E9PrefixOperation = {
-    E9PrefixOperators? ~ E10PostfixOperation
+E_17_PrefixOp = _{
+    E_17_PrefixOperator* ~ E_18_PostfixOp
 }
 
-E10PostfixOperators = {
-    ("++" | ("--" ~ !"-"))
+E_18_PostfixOperator = {
+    ("++" | ("--" ~ !">"))
 }
 
-E10PostfixOperation = {
-    E11MemberAccessOperation ~ E10PostfixOperators?
+E_18_PostfixOp = _{
+    E_19_MemberAccessOp ~ E_18_PostfixOperator*
 }
 
-E11MemberAccessOperator = {
+E_19_MemberAccessOperator = {
     "."
 }
 
-E11MemberAccessOperation = {
-    E12CallOperation ~ (E11MemberAccessOperator ~ E12CallOperation)*
+E_19_MemberAccessOp = _{
+    E_20_BracedOp ~ (E_19_MemberAccessOperator ~ E_20_BracedOp)*
 }
 
-E12ArgumentsContent = {
+E_20_ArgumentsContent = {
     (
         Expression
     )
@@ -217,59 +284,181 @@ E12ArgumentsContent = {
     )*
 }
 
-E12CallOperatorOpen = _{
-   "("
+E_20_BracedOperatorOpen = {
+   "[" | "("
 }
 
-E12CallOperatorClose = _{
-   ")"
+E_20_BracedOperatorClose = {
+   "]" | ")"
 }
 
-E12CallOperation = {
-    E13BracketOperation ~ (E12CallOperatorOpen ~ E12ArgumentsContent? ~ E12CallOperatorClose)*
+E_20_BracedOp = _{
+    E_Value ~ (E_20_BracedOperatorOpen ~ E_20_ArgumentsContent? ~ E_20_BracedOperatorClose)*
 }
 
-E13BracketContent = {
-    Expression
-}
-
-E13BracketOperatorOpen = {
-    "["
-}
-
-E13BracketOperatorClose = {
-    "]"
-}
-
-E13BracketOperation = {
-    EValue ~ (E13BracketOperatorOpen ~ E13BracketContent? ~ E13BracketOperatorClose)*
-}
+// Declaration Statements
+//
+// - Declare a new variable available in the current scope
+//
 
 VariableDeclarationKW = ${
     "var" ~ WHITESPACE+
 }
 
-VariableDeclarationStatement = {
-    VariableDeclarationKW ~
-    (
-        EVariableName
-    )
-    ~
-    (
-        "=" ~ Expression
-    )?
+SignalDeclarationMainKW = ${
+    "signal" ~ WHITESPACE+
 }
+
+SignalDeclarationVisibilityKW = ${
+    ("private" ~ WHITESPACE+)?
+}
+
+SignalDeclarationConnectionKW = ${
+      (("input" | "output") ~ WHITESPACE+)?
+}
+
+SignalDeclarationKW = {
+    SignalDeclarationMainKW ~ SignalDeclarationVisibilityKW ~ SignalDeclarationConnectionKW
+}
+
+ComponentDeclarationKW = ${
+    "component" ~ WHITESPACE+
+}
+
+ArrayDeclarationOperatorOpen = {
+    "["
+}
+
+ArrayDeclarationOperatorClose = {
+    "]"
+}
+
+ArrayDeclaration = {
+    ArrayDeclarationOperatorOpen ~ Expression ~ ArrayDeclarationOperatorClose
+}
+
+TypedComponentConstructorOperatorOpen = {
+    "("
+}
+
+TypedComponentConstructorOperatorClose = {
+    ")"
+}
+
+TypedComponentDeclaration = {
+    ComponentDeclarationKW ~ E_VariableName ~ (TypedComponentConstructorOperatorOpen ~ E_20_ArgumentsContent? ~ TypedComponentConstructorOperatorClose) ~ E_VariableName ~ ArrayDeclaration*
+}
+
+DeclarationStatement = {
+    TypedComponentDeclaration | ((SignalDeclarationKW | VariableDeclarationKW | ComponentDeclarationKW) ~ E_VariableName ~ ArrayDeclaration* ~ ("=" ~ Expression)?)
+}
+
+// Control Statements
+//
+// - Evaluate expressions to decide what to compute or not
+//
+
+WhileKW = ${
+    "while"
+}
+
+WhileStatement = {
+    WhileKW ~ "(" ~ Expression ~ ")" ~ (Body | OneLineBody)
+}
+
+ForKW = ${
+    "for"
+}
+
+ForStatement = {
+    ForKW ~ "(" ~ (DeclarationStatement | Expression)? ~ ";" ~ Expression? ~ ";" ~ Expression? ~ ")" ~ (Body | OneLineBody)
+}
+
+DoKW = ${
+    "do"
+}
+
+DoWhileStatement = {
+    DoKW ~ (Body | OneLineBody) ~ WhileKW ~ "(" ~ Expression ~ ")"
+}
+
+ElseIfKW = ${
+    ElseKW ~ WHITESPACE+ ~ IfKW
+}
+
+ElseIfStatement = {
+    ElseIfKW ~ "(" ~ Expression ~ ")" ~ (Body | OneLineBody)
+}
+
+ElseKW = ${
+    "else"
+}
+
+ElseStatement = {
+    ElseKW ~ (Body | OneLineBody)
+}
+
+IfKW = ${
+    "if"
+}
+
+IfStatement = {
+    IfKW ~ "(" ~ Expression ~ ")" ~ (Body | OneLineBody) ~ ElseIfStatement* ~ ElseStatement?
+}
+
+ReturnKW = ${
+    "return" ~ WHITESPACE+
+}
+
+ReturnStatement = {
+    ReturnKW ~ Expression
+}
+
+BreakKW = ${
+    "break" ~ WHITESPACE+
+}
+
+BreakStatement = {
+    BreakKW
+}
+
+ContinueKW = ${
+    "continue" ~ WHITESPACE+
+}
+
+ContinueStatement = {
+    ContinueKW
+}
+
+// Body
+//
+// - Logic container
+// - Composed of expressions and statements, and even bodies
+//
 
 BodyStatement = _{
     (
         (
-            VariableDeclarationStatement ~ end_of_line
+            DeclarationStatement ~ END_OF_LINE
         )
         |
         (
-            Expression ~ end_of_line
+            Expression ~ END_OF_LINE
         )
+        | ForStatement
+        | WhileStatement
+        | DoWhileStatement
+        | IfStatement
+        | ReturnStatement
+        | BreakStatement
+        | ContinueStatement
+        | Body
+        | END_OF_LINE
     )
+}
+
+OneLineBody = {
+    BodyStatement
 }
 
 Body = {
@@ -279,6 +468,22 @@ Body = {
     )*
     ~ "}"
 }
+
+// Function
+//
+// - Used to factorize computations
+// - Cannot use signal operations and declaration
+//
+// function nbits(a) {
+//     var n = 1;
+//     var r = 0;
+//     while (n-1<a) {
+//         r++;
+//         n *= 2;
+//     }
+//     return r;
+// }
+//
 
 FunctionName = {
     ASCII_ALPHA ~
@@ -293,21 +498,6 @@ FunctionKW = ${
 
 FunctionBlock = {
     FunctionKW ~ FunctionName ~ Parameters ~ Body
-}
-
-TemplateName = {
-    ASCII_ALPHA ~
-    (
-        ASCII_ALPHANUMERIC | "_"
-    )*
-}
-
-TemplateKW = ${
-    "template" ~ WHITESPACE+
-}
-
-TemplateBlock = {
-    TemplateKW ~ TemplateName ~ Parameters ~ Body
 }
 
 // Template
@@ -327,6 +517,21 @@ TemplateBlock = {
 //  }
 //
 
+TemplateName = {
+    ASCII_ALPHA ~
+    (
+        ASCII_ALPHANUMERIC | "_"
+    )*
+}
+
+TemplateKW = ${
+    "template" ~ WHITESPACE+
+}
+
+TemplateBlock = {
+    TemplateKW ~ TemplateName ~ Parameters ~ Body
+}
+
 // Include Statements
 //
 // - Used to include other circuit files
@@ -339,10 +544,32 @@ IncludeKW = ${
 }
 
 IncludePathString = ${
-    string_delimiter ~ FilesystemPath ~ string_delimiter
+    STRING_DELIMITER ~ FilesystemPath ~ STRING_DELIMITER
 }
 
 IncludeStatement = {
-    IncludeKW ~ IncludePathString ~ end_of_line
+    IncludeKW ~ IncludePathString ~ END_OF_LINE
 }
 
+// Circuit
+//
+// This parses a source file for the following expressions and statements
+//
+
+Circuit = {
+    SOI ~
+
+    (
+        IncludeStatement |
+        FunctionBlock |
+        TemplateBlock |
+        (
+            DeclarationStatement ~ END_OF_LINE
+        )
+        |
+        WHITESPACE |
+        COMMENT
+    )+
+
+    ~ EOI
+}
