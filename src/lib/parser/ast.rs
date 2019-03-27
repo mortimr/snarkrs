@@ -4,16 +4,22 @@ use pest::Parser;
 #[grammar = "lib/parser/grammar.pest"]
 struct CircuitParser;
 
-mod tokens {
+pub mod tokens {
 
     use parser::ast;
 
+    ///
+    /// Enumeration containing the two types of AST tokens.
+    ///
     #[derive(Debug)]
     pub enum Token {
         Terminal(TerminalToken),
         NonTerminal(NonTerminalToken)
     }
 
+    ///
+    /// NonTerminal Tokens: tokens that contain sub tokens. In our case, the cpatured value is ignored.
+    ///
     #[derive(Debug)]
     pub struct NonTerminalToken {
         pub span: (usize, usize),
@@ -21,6 +27,9 @@ mod tokens {
         pub subrules: Vec<Token>
     }
 
+    ///
+    /// Terminal Tokens: tokens that do not contain sub tokens. These are most of the time operators, names, values...
+    ///
     #[derive(Debug)]
     pub struct TerminalToken {
         pub span: (usize, usize),
@@ -28,6 +37,9 @@ mod tokens {
         pub content: std::string::String,
     }
 
+    ///
+    /// Root Token: Simple wrapper containing the source that has been parsed and the resulting tokens.
+    ///
     #[derive(Debug)]
     pub struct RootToken {
         pub source: std::string::String,
@@ -41,14 +53,21 @@ pub enum ParseError {
     PestError(pest::error::Error<Rule>)
 }
 
+///
+/// Representation of a file. Two main characs, its AST and the other files it includes.
+///
 #[derive(Debug)]
 pub struct File {
 
-    path: std::path::PathBuf,
-    root: tokens::RootToken
+    pub path: std::path::PathBuf,
+    pub root: tokens::RootToken,
+    pub includes: Vec<std::path::PathBuf>
 
 }
 
+///
+/// Converts the pest AST structure into the snarkrs AST structure. The pest AST is then consumed.
+///
 pub fn pairs_to_tokens(pairs: Vec<pest::iterators::Pair<Rule>>) -> Vec<tokens::Token> {
 
     let mut return_value: Vec<tokens::Token> = Vec::new();
@@ -84,6 +103,9 @@ pub fn pairs_to_tokens(pairs: Vec<pest::iterators::Pair<Rule>>) -> Vec<tokens::T
 
 }
 
+///
+/// Converts the source and the pest AST into a RootToken. Calls `pairs_to_tokens`.
+///
 pub fn pest_to_tokens(source: & str, pairs: pest::iterators::Pairs<Rule>) -> tokens::RootToken {
     tokens::RootToken {
         source: source.to_string(),
@@ -91,7 +113,9 @@ pub fn pest_to_tokens(source: & str, pairs: pest::iterators::Pairs<Rule>) -> tok
     }
 }
 
-
+///
+/// Takes a source buffer as input and returns the converted AST.
+///
 pub fn parse_source(sources: & str, maybe_rule: Option<Rule>) -> std::result::Result<tokens::RootToken, pest::error::Error<Rule>> {
     match
 
@@ -106,6 +130,9 @@ pub fn parse_source(sources: & str, maybe_rule: Option<Rule>) -> std::result::Re
         }
 }
 
+///
+/// Takes a path, loads it into memory, run the parsing and return the built `File` type.
+///
 pub fn parse_file(path: & std::path::PathBuf) -> Result<File, ParseError> {
 
     let path = std::path::PathBuf::from(path);
@@ -119,7 +146,8 @@ pub fn parse_file(path: & std::path::PathBuf) -> Result<File, ParseError> {
         root: match parse_source(&content, None) {
             Ok(val) => val,
             Err(error) => return Err(ParseError::PestError(error))
-        }
+        },
+        includes: Vec::new()
     })
 
 }
@@ -196,7 +224,7 @@ mod parser_tests {
             Ok(path) => path
         };
 
-        parse_file(&pathbuf);
+        parse_file(&pathbuf).expect("Could not parse file");
 
     }
 
