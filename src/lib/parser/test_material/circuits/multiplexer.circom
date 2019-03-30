@@ -94,8 +94,8 @@ template Multiplexor(wIn, nIn) {
     signal input inp[nIn][wIn];
     signal input sel;
     signal output out[wIn];
-    component Decoder(nIn) dec;
-    component EscalarProduct(nIn) ep[wIn];
+    component dec = Decoder(nIn);
+    component ep[wIn] = EscalarProduct(nIn);
     sel ==> dec.inp;
     for (var j=0; j<wIn; j++) {
         for (var k=0; k<nIn; k++) {
@@ -107,6 +107,6 @@ template Multiplexor(wIn, nIn) {
     dec.success === 1;
 }
 
-component Multiplexor(8,3) main;
+component main = Multiplexor(8, 3);
 
 

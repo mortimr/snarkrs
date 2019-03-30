@@ -23,7 +23,7 @@ COMMENT_LINE_CONTENT = {
 COMMENT_SPAN = { COMMENT_SPAN_OPENING_OPERATOR ~ COMMENT_SPAN_CONTENT ~ COMMENT_SPAN_CLOSING_OPERATOR}
 COMMENT_LINE = {"//" ~ COMMENT_LINE_CONTENT ~ NEWLINE}
 
-COMMENT = { COMMENT_SPAN | COMMENT_LINE}
+COMMENT = _{ COMMENT_SPAN | COMMENT_LINE}
 
 WHITESPACE = _{WHITE_SPACE}
 
@@ -337,20 +337,8 @@ ArrayDeclaration = {
     ArrayDeclarationOperatorOpen ~ Expression ~ ArrayDeclarationOperatorClose
 }
 
-TypedComponentConstructorOperatorOpen = {
-    "("
-}
-
-TypedComponentConstructorOperatorClose = {
-    ")"
-}
-
-TypedComponentDeclaration = {
-    ComponentDeclarationKW ~ E_VariableName ~ (TypedComponentConstructorOperatorOpen ~ E_20_ArgumentsContent? ~ TypedComponentConstructorOperatorClose) ~ E_VariableName ~ ArrayDeclaration*
-}
-
 DeclarationStatement = {
-    TypedComponentDeclaration | ((SignalDeclarationKW | VariableDeclarationKW | ComponentDeclarationKW) ~ E_VariableName ~ ArrayDeclaration* ~ ("=" ~ Expression)?)
+    (SignalDeclarationKW | VariableDeclarationKW | ComponentDeclarationKW) ~ E_VariableName ~ ArrayDeclaration* ~ ("=" ~ Expression)?
 }
 
 // Control Statements
@@ -556,6 +544,10 @@ IncludeStatement = {
 // This parses a source file for the following expressions and statements
 //
 
+EndOfCircuit = _{
+    !ANY
+}
+
 Circuit = {
     SOI ~
 
@@ -571,5 +563,5 @@ Circuit = {
         COMMENT
     )+
 
-    ~ EOI
+    ~ EndOfCircuit
 }

@@ -16,8 +16,6 @@ function test(arg1, arg2) {
     //// Component declaration
     component comp_a = Component();
     component comp_b = Component(arg2);
-    component Component() comp_c;
-    component Component(arg2) comp_d;
 
     // Main Expression Types (
     12345;

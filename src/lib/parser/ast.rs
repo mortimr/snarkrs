@@ -8,11 +8,17 @@ pub mod tokens {
 
     use parser::ast;
 
+    #[derive(Debug, Clone)]
+    pub struct Token {
+        pub rule: ast::Rule,
+        pub content: TokenInfos
+    }
+
     ///
     /// Enumeration containing the two types of AST tokens.
     ///
-    #[derive(Debug)]
-    pub enum Token {
+    #[derive(Debug, Clone)]
+    pub enum TokenInfos {
         Terminal(TerminalToken),
         NonTerminal(NonTerminalToken)
     }
@@ -20,27 +26,25 @@ pub mod tokens {
     ///
     /// NonTerminal Tokens: tokens that contain sub tokens. In our case, the cpatured value is ignored.
     ///
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct NonTerminalToken {
         pub span: (usize, usize),
-        pub rule: ast::Rule,
         pub subrules: Vec<Token>
     }
 
     ///
     /// Terminal Tokens: tokens that do not contain sub tokens. These are most of the time operators, names, values...
     ///
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct TerminalToken {
         pub span: (usize, usize),
-        pub rule: ast::Rule,
         pub content: std::string::String,
     }
 
     ///
     /// Root Token: Simple wrapper containing the source that has been parsed and the resulting tokens.
     ///
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct RootToken {
         pub source: std::string::String,
         pub ast: Vec<Token>
@@ -48,9 +52,9 @@ pub mod tokens {
 }
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ASTError {
     IOError(std::io::Error),
-    PestError(pest::error::Error<Rule>)
+    PestError(pest::error::Error<Rule>, std::string::String)
 }
 
 ///
@@ -78,22 +82,31 @@ pub fn pairs_to_tokens(pairs: Vec<pest::iterators::Pair<Rule>>) -> Vec<tokens::T
         let span: pest::Span = pair.as_span();
         let inner_pairs: Vec<pest::iterators::Pair<Rule>> = pair.into_inner().into_iter().collect();
 
+
         match inner_pairs.len() {
 
             0 => {
-                return_value.push(tokens::Token::Terminal(tokens::TerminalToken {
-                    span: (span.start(), span.end()),
+                return_value.push(tokens::Token {
                     rule,
-                    content: span.as_str().to_string()
-                }));
+                    content: tokens::TokenInfos::Terminal(
+                        tokens::TerminalToken {
+                            span: (span.start(), span.end()),
+                            content: span.as_str().to_string()
+                        }
+                    )
+                });
             },
 
             _ => {
-                return_value.push(tokens::Token::NonTerminal(tokens::NonTerminalToken {
-                    span: (span.start(), span.end()),
+                return_value.push(tokens::Token {
                     rule,
-                    subrules: pairs_to_tokens(inner_pairs)
-                }));
+                    content: tokens::TokenInfos::NonTerminal(
+                        tokens::NonTerminalToken {
+                            span: (span.start(), span.end()),
+                            subrules: pairs_to_tokens(inner_pairs)
+                        }
+                    )
+                });
             }
 
         }
@@ -133,33 +146,32 @@ pub fn parse_source(sources: & str, maybe_rule: Option<Rule>) -> std::result::Re
 ///
 /// Takes a path, loads it into memory, run the parsing and return the built `File` type.
 ///
-pub fn parse_file(path: & std::path::PathBuf) -> Result<File, ParseError> {
+pub fn parse_file(path: & std::path::PathBuf) -> Result<(File, std::string::String), ASTError> {
 
     let path = std::path::PathBuf::from(path);
     let content = match std::fs::read_to_string(&path) {
         Ok(val) => val,
-        Err(error) => return Err(ParseError::IOError(error))
+        Err(error) => return Err(ASTError::IOError(error))
     };
 
-    Ok(File {
+    Ok((File {
         path,
         root: match parse_source(&content, None) {
             Ok(val) => val,
-            Err(error) => return Err(ParseError::PestError(error))
+            Err(error) => return Err(ASTError::PestError(error, content))
         },
         includes: Vec::new()
-    })
+    }, content))
 
 }
 
 #[cfg(test)]
 mod parser_tests {
 
-    use galvanic_assert::matchers::*;
-
     use parser::ast;
     use pest::error::{LineColLocation, ErrorVariant};
     use parser::ast::{parse_file};
+    use parser::ast::tokens;
 
     fn test_untupler(expect_rules_values: &Vec<(ast::Rule, u32)>) -> Vec<ast::Rule> {
 
@@ -176,44 +188,28 @@ mod parser_tests {
 
     fn count_rules(token: & ast::tokens::Token, needed_rules: &Vec<ast::Rule>) -> Vec<u32> {
 
-        match token {
-            ast::tokens::Token::Terminal(terminal) => {
+        let mut single: Vec<u32> = Vec::new();
 
-                let mut single: Vec<u32> = Vec::new();
-
-                for rule in needed_rules {
-                    if *rule == terminal.rule {
-                        single.push(1);
-                    } else {
-                        single.push(0);
-                    }
-                }
-
-                single
-            },
-            ast::tokens::Token::NonTerminal(nterminal) => {
-
-                let mut single: Vec<u32> = Vec::new();
-
-                for rule in needed_rules {
-                    if *rule == nterminal.rule {
-                        single.push(1);
-                    } else {
-                        single.push(0);
-                    }
-                }
-
-                for sub_rule in &nterminal.subrules {
-                    let inner_ret = count_rules(sub_rule, needed_rules);
-                    for idx in 0..single.len() {
-                        single[idx] += inner_ret[idx];
-                    }
-                }
-
-                single
-
+        for rule in needed_rules {
+            if *rule == token.rule {
+                single.push(1);
+            } else {
+                single.push(0);
             }
         }
+
+        if let tokens::TokenInfos::NonTerminal(nterminal) = &token.content {
+            for sub_rule in &nterminal.subrules {
+                let inner_ret = count_rules(sub_rule, needed_rules);
+                for idx in 0..single.len() {
+                    single[idx] += inner_ret[idx];
+                }
+            }
+        }
+
+        single
+
+
     }
 
     #[test]
@@ -265,7 +261,7 @@ mod parser_tests {
             Err(err) => {
 
                 assert_eq!(err.line_col, LineColLocation::Pos((1, 34)));
-                assert_eq!(err.variant, ErrorVariant::ParsingError {positives: vec!(ast::Rule::COMMENT, ast::Rule::END_OF_LINE), negatives: vec!()});
+                assert_eq!(err.variant, ErrorVariant::ParsingError {positives: vec!(ast::Rule::END_OF_LINE), negatives: vec!()});
 
             }
         }

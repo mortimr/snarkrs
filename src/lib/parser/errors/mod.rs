@@ -1,37 +1,41 @@
-pub mod include;
-pub mod syntax;
+pub mod parse;
+pub mod io;
+pub mod logic;
+pub mod utils;
+
 pub mod common_displayer;
 
-use parser::ast::ParseError;
-use parser::errors::include::UnknownFileIncludeError;
+use std::fmt;
+
 
 #[derive(Debug)]
-pub enum CompileError {
-    UnknwonFileIncludeError(include::UnknownFileIncludeError),
-    SyntaxError(syntax::SyntaxError)
+pub struct CompileError {
+    pub msg: std::string::String,
+    pub code: usize,
+    pub infos: ErrorInfos
 }
 
-pub fn from_pest_parsing(file: & std::path::PathBuf, err: & ParseError) -> CompileError {
+#[derive(Debug)]
+pub enum ErrorInfos {
+    ParseError(parse::ParseError),
+    IOError(io::IOError),
+    LogicError(logic::LogicError)
+}
 
-    match err {
-        ParseError::IOError(_io) => {
-            CompileError::UnknwonFileIncludeError(UnknownFileIncludeError {
-                file_error: file.clone(),
-                source_error: "TODO".to_string(),
-                span_error: (10, 12),
+impl fmt::Display for CompileError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match &self.infos {
+            ErrorInfos::ParseError(perror) => {
+                write!(formatter, "E[{}]: ParseError\n\n{}\n\n\t{}\n", self.code, perror, self.msg)
+            },
+            ErrorInfos::IOError(ioerror) => {
+                write!(formatter, "E[{}]: IOError\n\n{}\n\n\t{}\n", self.code, ioerror, self.msg)
+            },
+            ErrorInfos::LogicError(lerror) => {
 
-                invalid_file: file.clone()
-            })
-        },
-        ParseError::PestError(_pest) => {
-            CompileError::SyntaxError(syntax::SyntaxError {
-                file_error: file.clone(),
-                source_error: "TODO".to_string(),
-                span_error: (10, 12)
-            })
+                write!(formatter, "E[{}]: LogicError\n\n{}\n\n\t{}\n", self.code, lerror, self.msg)
+            }
         }
     }
-
 }
-
 
